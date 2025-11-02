@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!-- <!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -31,10 +31,10 @@
     {{end}}
 </body>
 
-</html>
+</html> -->
 
 
-<!-- <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -43,57 +43,36 @@
 </head>
 
 <body>
-    <h2>Search by Part Code or VIN</h2>
-    <form id="searchForm">
-        <input type="text" name="code" id="codeInput" placeholder="Enter code or VIN">
+    <h1>Technomir Search</h1>
+
+    <div style="margin-bottom: 10px;">
+        <form action="/logout" method="post" style="display:inline;">
+            <button type="submit">Logout</button>
+        </form>
+    </div>
+
+    <form method="post" action="/">
+        <input type="text" name="partNum" placeholder="Enter part number" required>
         <button type="submit">Search</button>
     </form>
 
-    <pre id="results"></pre>
-
-    <script>
-        const form = document.getElementById('searchForm');
-        const resultsEl = document.getElementById('results');
-
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault(); // prevent page reload
-            resultsEl.textContent = 'Loading...';
-
-            const code = document.getElementById('codeInput').value.trim();
-            if (!code) {
-                resultsEl.textContent = 'Please enter a code or VIN.';
-                return;
-            }
-
-            try {
-                const response = await fetch('/search', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ code })
-                });
-
-                const data = await response.json();
-
-                // Check if error message
-                if (data.error) {
-                    resultsEl.textContent = `Error: ${data.error}`;
-                    return;
-                }
-
-                // Display results
-                if (data.message) {
-                    resultsEl.textContent = data.message;
-                    return;
-                }
-
-                resultsEl.textContent = JSON.stringify(data, null, 2);
-            } catch (err) {
-                resultsEl.textContent = `Request failed: ${err}`;
-            }
-        });
-    </script>
+    {{if .}}
+    <h2>Results:</h2>
+    <ul>
+        {{range .}}
+        <li>
+            Brand: {{.Brand}} | Code: {{.Code}}
+            <ul>
+                {{range .Stocks}}
+                <li>Supplier: {{.PriceLogo}} | Price: {{.Price}}</li>
+                {{end}}
+            </ul>
+        </li>
+        {{end}}
+    </ul>
+    {{end}}
 </body>
 
-</html> -->
+</html>
+
+
