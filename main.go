@@ -201,6 +201,7 @@ import (
 var tpl = template.Must(template.ParseFiles("static/index.html"))
 var signupTpl = template.Must(template.ParseFiles("static/signup.html"))
 var loginTpl = template.Must(template.ParseFiles("static/login.html"))
+var confirmTpl = template.Must(template.ParseFiles("static/confirm.html"))
 var supabaseClient *supabase.Client
 
 
@@ -217,7 +218,6 @@ func main() {
 	client := tehnomir.New(cfg)
 
 	// --- Supabase setup ---
-	// --- Supabase setup ---
 supabaseURL := os.Getenv("SUPABASE_URL")
 supabaseKey := os.Getenv("SUPABASE_KEY")
 if supabaseURL == "" || supabaseKey == "" {
@@ -233,12 +233,9 @@ if err != nil {
 
 
 // --- Gotrue Auth setup ---
-// --- Gotrue Auth setup ---
 projectRef := "xgrmgyusghkuogfbkkcl" // this is your Supabase project ref
 authClient := gotrue.New(projectRef, supabaseKey)
 fmt.Println("Auth client initialized for project:", projectRef)
-
-
 
 
 
@@ -249,35 +246,56 @@ fmt.Println("Auth client initialized for project:", projectRef)
 
 
 
+
+	
 	// Signup page
-	http.HandleFunc("/signup", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodGet {
-			signupTpl.Execute(w, nil)
+http.HandleFunc("/signup", func(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet {
+		signupTpl.Execute(w, nil)
+		return
+	}
+
+	email := strings.TrimSpace(r.FormValue("email"))
+	password := strings.TrimSpace(r.FormValue("password"))
+
+	req := types.SignupRequest{
+		Email:    email,
+		Password: password,
+	}
+
+	// Try to create account
+	_, err := authClient.Signup(req)
+	if err != nil {
+		errMsg := err.Error()
+
+		// If Supabase says user already exists
+		if strings.Contains(errMsg, "User already registered") ||
+			strings.Contains(errMsg, "email already registered") {
+			signupTpl.Execute(w, map[string]string{
+				"Error": "An account with this email already exists. Please log in instead.",
+			})
 			return
 		}
 
-		email := strings.TrimSpace(r.FormValue("email"))
-		password := strings.TrimSpace(r.FormValue("password"))
+		http.Error(w, fmt.Sprintf("Signup error: %v", err), http.StatusInternalServerError)
+		return
+	}
 
-		req := types.SignupRequest{
-			Email:    email,
-			Password: password,
-		}
+	// Redirect new user to confirmation page
+	http.Redirect(w, r, "/confirm", http.StatusSeeOther)
+})
 
-		user, err := authClient.Signup(req)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("Signup error: %v", err), http.StatusInternalServerError)
-			return
-		}
 
-		fmt.Fprintf(w, "User created: %v", user)
-	})
 
+	// ✅ Confirm route — place it right here!
+http.HandleFunc("/confirm", func(w http.ResponseWriter, r *http.Request) {
+	confirmTpl.Execute(w, nil)
+})
 
 
 
 	// Login page
-	http.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
+http.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
 		loginTpl.Execute(w, nil)
 		return
@@ -288,10 +306,20 @@ fmt.Println("Auth client initialized for project:", projectRef)
 
 	session, err := authClient.SignInWithEmailPassword(email, password)
 	if err != nil {
-    	http.Error(w, fmt.Sprintf("Login error: %v", err), http.StatusInternalServerError)
-    	return
+		errMsg := err.Error()
+		if strings.Contains(errMsg, "invalid_credentials") {
+			// Supabase returns this if the email doesn't exist or password is wrong
+			if strings.Contains(errMsg, "Invalid login credentials") {
+				// Now check if the email exists to show a better message
+				// (simpler version: just use one message per case)
+				message := "Wrong password or user does not exist. Please check your email or create an account first."
+				loginTpl.Execute(w, map[string]string{"Error": message})
+				return
+			}
+		}
+		http.Error(w, fmt.Sprintf("Login error: %v", err), http.StatusInternalServerError)
+		return
 	}
-
 
 	http.SetCookie(w, &http.Cookie{
 		Name:  "session_token",
@@ -301,6 +329,7 @@ fmt.Println("Auth client initialized for project:", projectRef)
 
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 })
+
 
 
 
