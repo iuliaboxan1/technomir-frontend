@@ -217,11 +217,13 @@ func main() {
 	client := tehnomir.New(cfg)
 
 	// --- Supabase setup ---
+	// --- Supabase setup ---
 supabaseURL := os.Getenv("SUPABASE_URL")
 supabaseKey := os.Getenv("SUPABASE_KEY")
 if supabaseURL == "" || supabaseKey == "" {
 	log.Fatalln("Set SUPABASE_URL and SUPABASE_KEY environment variables")
 }
+
 
 var err error
 supabaseClient, err = supabase.NewClient(supabaseURL, supabaseKey, nil)
@@ -229,6 +231,8 @@ if err != nil {
 	log.Fatalf("Error initializing Supabase client: %v", err)
 }
 
+
+// --- Gotrue Auth setup ---
 // --- Gotrue Auth setup ---
 projectRef := "xgrmgyusghkuogfbkkcl" // this is your Supabase project ref
 authClient := gotrue.New(projectRef, supabaseKey)
