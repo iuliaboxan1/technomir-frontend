@@ -1,186 +1,3 @@
-// package main
-
-// import (
-// 	"fmt"
-// 	"html/template"
-// 	"log"
-// 	"net/http"
-// 	"os"
-// 	"strings"
-
-// 	"github.com/NuclearLouse/tehnomir"
-// )
-
-// var tpl = template.Must(template.ParseFiles("static/index.html"))
-
-
-
-// func main() {
-// 	token := os.Getenv("TECHNOMIR_TOKEN")
-// 	if token == "" {
-// 		log.Fatalln("Set TECHNOMIR_TOKEN environment variable with your API token")
-// 	}
-
-// 	cfg := tehnomir.DefaultConfig()
-// 	cfg.Token = token
-// 	client := tehnomir.New(cfg)
-
-// 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-// 		if r.Method == http.MethodGet {
-// 			tpl.Execute(w, nil)
-// 			return
-// 		}
-
-// 		// Handle POST
-// 		if err := r.ParseForm(); err != nil {
-// 			fmt.Fprintf(w, "ParseForm error: %v", err)
-// 			return
-// 		}
-// 		partNum := strings.TrimSpace(r.FormValue("partNum"))
-// 		if partNum == "" {
-// 			fmt.Fprintf(w, "Part number is required")
-// 			return
-// 		}
-
-// 		res, err := client.SearchByBrandWithoutAnalogs(partNum, 0, tehnomir.USD)
-// 		if err != nil {
-// 			fmt.Fprintf(w, "Error: %v", err)
-// 			return
-// 		}
-
-// 		tpl.Execute(w, res.Details)
-// 	})
-
-// 	fmt.Println("Server started at http://localhost:8080")
-// 	log.Fatal(http.ListenAndServe(":8080", nil))
-// }
-
-
-// package main
-
-// import (
-// 	"fmt"
-// 	"html/template"
-// 	"log"
-// 	"net/http"
-// 	"os"
-// 	"strings"
-
-// 	"github.com/NuclearLouse/tehnomir"
-// 	"github.com/supabase-community/gotrue-go/types"
-// 	"github.com/supabase-community/supabase-go"
-// )
-
-// var tpl = template.Must(template.ParseFiles("static/index.html"))
-// var supabaseClient *supabase.Client
-
-// func main() {
-// 	// --- Technomir setup ---
-// 	token := os.Getenv("TECHNOMIR_TOKEN")
-// 	if token == "" {
-// 		log.Fatalln("Set TECHNOMIR_TOKEN environment variable with your API token")
-// 	}
-// 	cfg := tehnomir.DefaultConfig()
-// 	cfg.Token = token
-// 	client := tehnomir.New(cfg)
-
-// 	// --- Supabase setup ---
-// 	supabaseURL := os.Getenv("SUPABASE_URL")
-// 	supabaseKey := os.Getenv("SUPABASE_KEY")
-// 	if supabaseURL == "" || supabaseKey == "" {
-// 		log.Fatalln("Set SUPABASE_URL and SUPABASE_KEY environment variables")
-// 	}
-
-// 	var err error
-// 	supabaseClient, err = supabase.NewClient(supabaseURL, supabaseKey, nil)
-// 	if err != nil {
-// 		log.Fatalf("Failed to create Supabase client: %v", err)
-// 	}
-
-// 	// --- Routes ---
-// 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-// 		if r.Method == http.MethodGet {
-// 			tpl.Execute(w, nil)
-// 			return
-// 		}
-
-// 		if err := r.ParseForm(); err != nil {
-// 			fmt.Fprintf(w, "ParseForm error: %v", err)
-// 			return
-// 		}
-// 		partNum := strings.TrimSpace(r.FormValue("partNum"))
-// 		if partNum == "" {
-// 			fmt.Fprintf(w, "Part number is required")
-// 			return
-// 		}
-
-// 		res, err := client.SearchByBrandWithoutAnalogs(partNum, 0, tehnomir.USD)
-// 		if err != nil {
-// 			fmt.Fprintf(w, "Error: %v", err)
-// 			return
-// 		}
-
-// 		tpl.Execute(w, res.Details)
-// 	})
-
-// 	http.HandleFunc("/signup", SignupHandler)
-// 	http.HandleFunc("/login", LoginHandler)
-
-// 	// --- Start server ---
-// 	fmt.Println("Server started at http://localhost:8080")
-// 	log.Fatal(http.ListenAndServe(":8080", nil))
-// }
-
-// // ---------------- Supabase Handlers ----------------
-// func SignupHandler(w http.ResponseWriter, r *http.Request) {
-// 	if r.Method != http.MethodPost {
-// 		http.Error(w, "Invalid method", http.StatusMethodNotAllowed)
-// 		return
-// 	}
-
-// 	email := strings.TrimSpace(r.FormValue("email"))
-// 	password := strings.TrimSpace(r.FormValue("password"))
-// 	if email == "" || password == "" {
-// 		http.Error(w, "Email and password required", http.StatusBadRequest)
-// 		return
-// 	}
-
-// 	req := types.SignupRequest{
-// 		Email:    email,
-// 		Password: password,
-// 	}
-
-// 	user, err := supabaseClient.Auth.Signup(req)
-// 	if err != nil {
-// 		http.Error(w, fmt.Sprintf("Signup error: %v", err), http.StatusInternalServerError)
-// 		return
-// 	}
-
-// 	fmt.Fprintf(w, "User created: %v", user)
-// }
-
-// func LoginHandler(w http.ResponseWriter, r *http.Request) {
-// 	if r.Method != http.MethodPost {
-// 		http.Error(w, "Invalid method", http.StatusMethodNotAllowed)
-// 		return
-// 	}
-
-// 	email := strings.TrimSpace(r.FormValue("email"))
-// 	password := strings.TrimSpace(r.FormValue("password"))
-// 	if email == "" || password == "" {
-// 		http.Error(w, "Email and password required", http.StatusBadRequest)
-// 		return
-// 	}
-
-// 	session, err := supabaseClient.Auth.SignInWithEmailPassword(email, password)
-// 	if err != nil {
-// 		http.Error(w, fmt.Sprintf("Login error: %v", err), http.StatusInternalServerError)
-// 		return
-// 	}
-
-// 	fmt.Fprintf(w, "Logged in! Session: %v", session)
-// }
-
 
 package main
 
@@ -359,6 +176,8 @@ http.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+
+
 		// Handle POST
 		if err := r.ParseForm(); err != nil {
 			fmt.Fprintf(w, "ParseForm error: %v", err)
@@ -379,6 +198,8 @@ http.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
 		tpl.Execute(w, res.Details)
 	})
 
+
+	
 	// --- Start server ---
 	fmt.Println("Server started at http://localhost:8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
