@@ -2,12 +2,15 @@
 package main
 
 import (
+	"encoding/base64"
+    "encoding/json"
 	"fmt"
 	"html/template"
 	"log"
 	"net/http"
 	"os"
 	"strings"
+	"math"
 
 	"github.com/NuclearLouse/tehnomir"
 	"github.com/supabase-community/supabase-go"
@@ -16,10 +19,74 @@ import (
 )
 
 var tpl = template.Must(template.ParseFiles("static/index.html"))
+var accountTpl = template.Must(template.ParseFiles("static/account.html"))
 var signupTpl = template.Must(template.ParseFiles("static/signup.html"))
 var loginTpl = template.Must(template.ParseFiles("static/login.html"))
 var confirmTpl = template.Must(template.ParseFiles("static/confirm.html"))
 var supabaseClient *supabase.Client
+
+
+
+
+// Get user info from Supabase token
+// Decode JWT payload (middle part) and return email
+func extractEmailFromJWT(token string) (string, error) {
+    parts := strings.Split(token, ".")
+    if len(parts) != 3 {
+        return "", fmt.Errorf("invalid JWT format")
+    }
+
+    // Decode payload
+    payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+    if err != nil {
+        return "", fmt.Errorf("failed to decode JWT payload: %v", err)
+    }
+
+    // Parse JSON
+    var data map[string]interface{}
+    if err := json.Unmarshal(payload, &data); err != nil {
+        return "", fmt.Errorf("failed to parse JWT JSON: %v", err)
+    }
+
+    // Return email claim
+    email, ok := data["email"].(string)
+    if !ok {
+        return "", fmt.Errorf("email not found in JWT")
+    }
+
+    return email, nil
+}
+
+
+
+
+
+// Extract user_id ("sub") from Supabase JWT
+func extractUserIDFromJWT(token string) (string, error) {
+    parts := strings.Split(token, ".")
+    if len(parts) < 2 {
+        return "", fmt.Errorf("invalid token")
+    }
+
+    payloadJSON, err := base64.RawURLEncoding.DecodeString(parts[1])
+    if err != nil {
+        return "", err
+    }
+
+    var payload struct {
+        Sub string `json:"sub"`
+    }
+
+    if err := json.Unmarshal(payloadJSON, &payload); err != nil {
+        return "", err
+    }
+
+    return payload.Sub, nil
+}
+
+
+
+
 
 
 
@@ -51,6 +118,7 @@ if err != nil {
 
 // --- Gotrue Auth setup ---
 projectRef := "xgrmgyusghkuogfbkkcl" // this is your Supabase project ref
+// authClient := gotrue.New(projectRef, supabaseKey)
 authClient := gotrue.New(projectRef, supabaseKey)
 fmt.Println("Auth client initialized for project:", projectRef)
 
@@ -113,70 +181,205 @@ http.HandleFunc("/confirm", func(w http.ResponseWriter, r *http.Request) {
 
 	// Login page
 http.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodGet {
-		loginTpl.Execute(w, nil)
-		return
-	}
+    if r.Method == http.MethodGet {
+        loginTpl.Execute(w, nil)
+        return
+    }
 
-	email := strings.TrimSpace(r.FormValue("email"))
-	password := strings.TrimSpace(r.FormValue("password"))
+    email := strings.TrimSpace(r.FormValue("email"))
+    password := strings.TrimSpace(r.FormValue("password"))
 
-	session, err := authClient.SignInWithEmailPassword(email, password)
-	if err != nil {
-		errMsg := err.Error()
-		if strings.Contains(errMsg, "invalid_credentials") {
-			// Supabase returns this if the email doesn't exist or password is wrong
-			if strings.Contains(errMsg, "Invalid login credentials") {
-				// Now check if the email exists to show a better message
-				// (simpler version: just use one message per case)
-				message := "Wrong password or user does not exist. Please check your email or create an account first."
-				loginTpl.Execute(w, map[string]string{"Error": message})
-				return
-			}
-		}
-		http.Error(w, fmt.Sprintf("Login error: %v", err), http.StatusInternalServerError)
-		return
-	}
+    session, err := authClient.SignInWithEmailPassword(email, password)
+    if err != nil {
+        errMsg := err.Error()
+        if strings.Contains(errMsg, "invalid_credentials") {
+            message := "Wrong password or user does not exist. Please check your email or create an account first."
+            loginTpl.Execute(w, map[string]string{"Error": message})
+            return
+        }
+        http.Error(w, fmt.Sprintf("Login error: %v", err), http.StatusInternalServerError)
+        return
+    }
 
-	http.SetCookie(w, &http.Cookie{
-		Name:  "session_token",
-		Value: session.AccessToken,
-		Path:  "/",
-	})
+    // ⭐ Store ACCESS TOKEN
+    http.SetCookie(w, &http.Cookie{
+        Name:     "access_token",
+        Value:    session.AccessToken,
+        Path:     "/",
+        HttpOnly: true,
+        Secure:   false, // set true if using https
+    })
 
-	http.Redirect(w, r, "/", http.StatusSeeOther)
+    // ⭐ Store REFRESH TOKEN (important!!)
+    http.SetCookie(w, &http.Cookie{
+        Name:     "refresh_token",
+        Value:    session.RefreshToken,
+        Path:     "/",
+        HttpOnly: true,
+        Secure:   false, // set true if https
+    })
+
+    http.Redirect(w, r, "/", http.StatusSeeOther)
 })
+
 
 
 
 
 	
 	// Logout
-	http.HandleFunc("/logout", func(w http.ResponseWriter, r *http.Request) {
-		http.SetCookie(w, &http.Cookie{
-			Name:   "session_token",
-			Value:  "",
-			Path:   "/",
-			MaxAge: -1, // delete cookie
-		})
-		http.Redirect(w, r, "/login", http.StatusSeeOther)
-	})
+http.HandleFunc("/logout", func(w http.ResponseWriter, r *http.Request) {
+
+    // Remove access token
+    http.SetCookie(w, &http.Cookie{
+        Name:   "access_token",
+        Value:  "",
+        Path:   "/",
+        MaxAge: -1,
+    })
+
+    // Remove refresh token
+    http.SetCookie(w, &http.Cookie{
+        Name:   "refresh_token",
+        Value:  "",
+        Path:   "/",
+        MaxAge: -1,
+    })
+
+    http.Redirect(w, r, "/login", http.StatusSeeOther)
+})
+
+
+
+
+	
+	// Account
+http.HandleFunc("/account", func(w http.ResponseWriter, r *http.Request) {
+
+
+    cookie, err := r.Cookie("access_token")
+    if err != nil || cookie.Value == "" {
+        http.Redirect(w, r, "/login", http.StatusSeeOther)
+        return
+    }
+
+    token := cookie.Value
+
+
+    email, err := extractEmailFromJWT(token)
+    if err != nil {
+        http.Redirect(w, r, "/login", http.StatusSeeOther)
+        return
+    }
+
+    userID, err := extractUserIDFromJWT(token)
+    if err != nil {
+        http.Redirect(w, r, "/login", http.StatusSeeOther)
+        return
+    }
+
+    // Fetch cart items
+    data, _, err := supabaseClient.
+        From("cart_items").
+        Select("*", "", false).
+        Eq("user_id", userID).
+        Execute()
+
+    if err != nil {
+        http.Error(w, fmt.Sprintf("Error loading cart: %v", err), http.StatusInternalServerError)
+        return
+    }
+
+    var cart []map[string]interface{}
+    if err := json.Unmarshal(data, &cart); err != nil {
+        http.Error(w, fmt.Sprintf("Error decoding cart JSON: %v", err), http.StatusInternalServerError)
+        return
+    }
+
+    accountTpl.Execute(w, map[string]interface{}{
+        "Email": email,
+        "Cart":  cart,
+    })
+})
+
+
+
+
+
+
+	
+	// Add to cart
+http.HandleFunc("/cart/add", func(w http.ResponseWriter, r *http.Request) {
+    if r.Method != http.MethodPost {
+        http.Redirect(w, r, "/", http.StatusSeeOther)
+        return
+    }
+
+    // Read access token cookie (just for checking login)
+    cookie, err := r.Cookie("access_token")
+    if err != nil || cookie.Value == "" {
+        http.Redirect(w, r, "/login", http.StatusSeeOther)
+        return
+    }
+
+    // Extract user ID from the token
+    userID, err := extractUserIDFromJWT(cookie.Value)
+    if err != nil {
+        http.Redirect(w, r, "/login", http.StatusSeeOther)
+        return
+    }
+
+    brand := r.FormValue("brand")
+    code := r.FormValue("code")
+    supplier := r.FormValue("supplier")
+    price := r.FormValue("price")
+    delivery := r.FormValue("delivery")
+
+    payload := map[string]interface{}{
+        "user_id":       userID,
+        "brand":         brand,
+        "code":          code,
+        "supplier":      supplier,
+        "price":         price,
+        "delivery_days": delivery,
+    }
+
+    _, _, err = supabaseClient.
+        From("cart_items").
+        Insert(payload, false, "", "", "").
+        Execute()
+
+    if err != nil {
+        http.Error(w, "Error adding to cart: "+err.Error(), http.StatusInternalServerError)
+        return
+    }
+
+    http.Redirect(w, r, "/account", http.StatusSeeOther)
+})
+
+
+
+
+
+
+
+
+
+
 
 	// Main search page (requires login)
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		// Check login
-		cookie, err := r.Cookie("session_token")
-		if err != nil || cookie.Value == "" {
-			http.Redirect(w, r, "/login", http.StatusSeeOther)
-			return
-		}
+		cookie, err := r.Cookie("access_token")
+	if err != nil || cookie.Value == "" {
+    http.Redirect(w, r, "/login", http.StatusSeeOther)
+    return
+	}
 
 		if r.Method == http.MethodGet {
 			tpl.Execute(w, nil)
 			return
 		}
-
-
 
 		// Handle POST
 		if err := r.ParseForm(); err != nil {
@@ -190,13 +393,42 @@ http.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
 		}
 
 		res, err := client.SearchByBrandWithoutAnalogs(partNum, 0, tehnomir.USD)
+
+		// fmt.Println("Search query:", partNum)
+		// fmt.Println("API error:", err)
+		// fmt.Println("Details count:", len(res.Details))
+		// fmt.Printf("DETAIL[0]: %+v\n", res.Details[0])
+		// fmt.Printf("STOCKS[0]: %+v\n", res.Details[0].Stocks[0])
+
+
+
 		if err != nil {
 			fmt.Fprintf(w, "Error: %v", err)
 			return
 		}
 
-		tpl.Execute(w, res.Details)
+		for i := range res.Details {
+    	for j := range res.Details[i].Stocks {
+        stock := &res.Details[i].Stocks[j]
+
+        newPrice := stock.Price * 1.05
+		stock.Price = math.Ceil(newPrice)
+        stock.DeliveryDays = stock.DeliveryDays + 5
+    	}
+		}
+		// tpl.Execute(w, res.Details)
+		err = tpl.Execute(w, res.Details)
+		if err != nil {
+    	fmt.Println("TEMPLATE ERROR:", err)
+   		 http.Error(w, err.Error(), 500)
+   		 return
+		}
+
+
 	})
+
+
+
 
 
 	
@@ -204,6 +436,8 @@ http.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("Server started at http://localhost:8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
+
+
 
 
 

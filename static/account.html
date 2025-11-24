@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>My Account</title>
+</head>
+
+<body>
+
+    <h1>My Account</h1>
+
+    <p>Email: {{.Email}}</p>
+
+    <h2>My Cart</h2>
+
+    {{if .Cart}}
+    <ul>
+        {{range .Cart}}
+        <li>
+            <strong>{{.brand}} - {{.code}}</strong><br>
+            Supplier: {{.supplier}} <br>
+            Price: {{.price}} <br>
+            Delivery: {{.delivery_days}} days
+        </li>
+        <br>
+        {{end}}
+    </ul>
+    {{else}}
+    <p>Your cart is empty.</p>
+    {{end}}
+
+    <br><br>
+
+    <a href="/">⬅️ Back to Search</a>
+
+    <form action="/logout" method="post">
+        <button type="submit">Log Out</button>
+    </form>
+
+</body>

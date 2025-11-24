@@ -1,5 +1,3 @@
-
-
 <!DOCTYPE html>
 <html lang="en">
 
@@ -11,11 +9,7 @@
 <body>
     <h1>Technomir Search</h1>
 
-    <div style="margin-bottom: 10px;">
-        <form action="/logout" method="post" style="display:inline;">
-            <button type="submit">Logout</button>
-        </form>
-    </div>
+    <a href="/account">My Account</a>
 
     <form method="post" action="/">
         <input type="text" name="partNum" placeholder="Enter part number" required>
@@ -25,20 +19,42 @@
     {{if .}}
     <h2>Results:</h2>
     <ul>
+
         {{range .}}
+        {{ $item := . }}
         <li>
-            Brand: {{.Brand}} | Code: {{.Code}}
+            Brand: {{ $item.Brand }} |
+            Code: {{ $item.Code }}
+
             <ul>
-                {{range .Stocks}}
-                <li>Supplier: {{.PriceLogo}} | Price: {{.Price}}</li>
+                {{range $item.Stocks}}
+                <li>
+                    Supplier: {{.PriceLogo}} |
+                    Price: {{.Price}} |
+                    Delivery: {{.DeliveryDays}} days
+
+                    <form action="/cart/add" method="post">
+                        <input type="hidden" name="brand" value="{{ $item.Brand }}">
+                        <input type="hidden" name="code" value="{{ $item.Code }}">
+                        <input type="hidden" name="supplier" value="{{ .PriceLogo }}">
+                        <input type="hidden" name="price" value="{{ .Price }}">
+                        <input type="hidden" name="delivery" value="{{ .DeliveryDays }}">
+                        <button type="submit">Add to Cart</button>
+                    </form>
+                </li>
                 {{end}}
             </ul>
+
         </li>
         {{end}}
+
     </ul>
     {{end}}
+
 </body>
 
 </html>
+
+
 
 
