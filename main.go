@@ -18,6 +18,7 @@ import (
 )
 
 var tpl = template.Must(template.ParseFiles("static/index.html"))
+var cartTpl = template.Must(template.ParseFiles("static/cart.html"))
 var accountTpl = template.Must(template.ParseFiles("static/account.html"))
 var signupTpl = template.Must(template.ParseFiles("static/signup.html"))
 var loginTpl = template.Must(template.ParseFiles("static/login.html"))
@@ -260,12 +261,34 @@ http.HandleFunc("/logout", func(w http.ResponseWriter, r *http.Request) {
 
 
 
+    // Account
+http.HandleFunc("/account", func(w http.ResponseWriter, r *http.Request) {
+
+    cookie, err := r.Cookie("access_token")
+    if err != nil || cookie.Value == "" {
+        http.Redirect(w, r, "/login", http.StatusSeeOther)
+        return
+    }
+
+    token := cookie.Value
+
+    email, err := extractEmailFromJWT(token)
+    if err != nil {
+        http.Redirect(w, r, "/login", http.StatusSeeOther)
+        return
+    }
+
+    accountTpl.Execute(w, map[string]interface{}{
+        "Email": email,
+    })
+})
+
 
 
 
 	
-	// Account
-http.HandleFunc("/account", func(w http.ResponseWriter, r *http.Request) {
+	// Cart
+http.HandleFunc("/cart", func(w http.ResponseWriter, r *http.Request) {
 
 
     cookie, err := r.Cookie("access_token")
@@ -326,7 +349,7 @@ for _, item := range cart {
 }
 
 
-    accountTpl.Execute(w, map[string]interface{}{
+    cartTpl.Execute(w, map[string]interface{}{
         "Email": email,
         "Cart":  cart,
         "Total": total,
@@ -396,7 +419,7 @@ http.HandleFunc("/cart/add", func(w http.ResponseWriter, r *http.Request) {
 // REMOVE from cart
 http.HandleFunc("/cart/remove", func(w http.ResponseWriter, r *http.Request) {
     if r.Method != http.MethodPost {
-        http.Redirect(w, r, "/account", http.StatusSeeOther)
+        http.Redirect(w, r, "/cart", http.StatusSeeOther)
         return
     }
 
@@ -430,7 +453,7 @@ http.HandleFunc("/cart/remove", func(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    http.Redirect(w, r, "/account", http.StatusSeeOther)
+    http.Redirect(w, r, "/cart", http.StatusSeeOther)
 })
 
 
