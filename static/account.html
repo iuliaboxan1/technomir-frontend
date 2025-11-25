@@ -18,14 +18,22 @@
     <ul>
         {{range .Cart}}
         <li>
-            <strong>{{.brand}} - {{.code}}</strong><br>
-            Supplier: {{.supplier}} <br>
-            Price: {{.price}} <br>
-            Delivery: {{.delivery_days}} days
+            <strong>{{.brand}} - {{.code}}</strong> |
+            Supplier: {{.supplier}} |
+            Price: {{.price}} |
+            Delivery: {{.delivery_days}} days |
+
+            <form action="/cart/remove" method="post" style="display:inline;">
+                <input type="hidden" name="id" value="{{.id}}">
+                <button type="submit" style="color:red;">Remove</button>
+            </form>
         </li>
         <br>
         {{end}}
     </ul>
+
+    <h3>Total: ${{printf "%.2f" .Total}}</h3>
+
     {{else}}
     <p>Your cart is empty.</p>
     {{end}}

@@ -1,4 +1,3 @@
-
 package main
 
 import (
@@ -24,8 +23,6 @@ var signupTpl = template.Must(template.ParseFiles("static/signup.html"))
 var loginTpl = template.Must(template.ParseFiles("static/login.html"))
 var confirmTpl = template.Must(template.ParseFiles("static/confirm.html"))
 var supabaseClient *supabase.Client
-
-
 
 
 // Get user info from Supabase token
@@ -60,7 +57,6 @@ func extractEmailFromJWT(token string) (string, error) {
 
 
 
-
 // Extract user_id ("sub") from Supabase JWT
 func extractUserIDFromJWT(token string) (string, error) {
     parts := strings.Split(token, ".")
@@ -83,6 +79,9 @@ func extractUserIDFromJWT(token string) (string, error) {
 
     return payload.Sub, nil
 }
+
+
+
 
 
 
@@ -121,6 +120,8 @@ projectRef := "xgrmgyusghkuogfbkkcl" // this is your Supabase project ref
 // authClient := gotrue.New(projectRef, supabaseKey)
 authClient := gotrue.New(projectRef, supabaseKey)
 fmt.Println("Auth client initialized for project:", projectRef)
+
+
 
 
 
@@ -172,10 +173,15 @@ http.HandleFunc("/signup", func(w http.ResponseWriter, r *http.Request) {
 
 
 
+
+
 	// ✅ Confirm route — place it right here!
 http.HandleFunc("/confirm", func(w http.ResponseWriter, r *http.Request) {
 	confirmTpl.Execute(w, nil)
 })
+
+
+
 
 
 
@@ -252,6 +258,8 @@ http.HandleFunc("/logout", func(w http.ResponseWriter, r *http.Request) {
 
 
 
+
+
 	
 	// Account
 http.HandleFunc("/account", func(w http.ResponseWriter, r *http.Request) {
@@ -296,12 +304,32 @@ http.HandleFunc("/account", func(w http.ResponseWriter, r *http.Request) {
         return
     }
 
+
+    var total float64 = 0
+
+for _, item := range cart {
+    // price may arrive as float64 (most likely)
+    if priceFloat, ok := item["price"].(float64); ok {
+        total += priceFloat
+        continue
+    }
+
+    // or as string (fallback)
+    if priceStr, ok := item["price"].(string); ok {
+        var priceParsed float64
+        fmt.Sscanf(priceStr, "%f", &priceParsed)
+        total += priceParsed
+    }
+}
+
+
     accountTpl.Execute(w, map[string]interface{}{
         "Email": email,
         "Cart":  cart,
+        "Total": total,
     })
-})
 
+})
 
 
 
@@ -360,6 +388,45 @@ http.HandleFunc("/cart/add", func(w http.ResponseWriter, r *http.Request) {
 
 
 
+// REMOVE from cart
+http.HandleFunc("/cart/remove", func(w http.ResponseWriter, r *http.Request) {
+    if r.Method != http.MethodPost {
+        http.Redirect(w, r, "/account", http.StatusSeeOther)
+        return
+    }
+
+    // Must be logged in
+    cookie, err := r.Cookie("access_token")
+    if err != nil || cookie.Value == "" {
+        http.Redirect(w, r, "/login", http.StatusSeeOther)
+        return
+    }
+
+    token := cookie.Value
+    userID, err := extractUserIDFromJWT(token)
+    if err != nil {
+        http.Redirect(w, r, "/login", http.StatusSeeOther)
+        return
+    }
+
+    // Which item to delete?
+    id := r.FormValue("id") // cart row ID
+
+    // DELETE only user’s own item
+    _, _, err = supabaseClient.
+        From("cart_items").
+        Delete("", "").
+        Eq("id", id).
+        Eq("user_id", userID).
+        Execute()
+
+    if err != nil {
+        http.Error(w, "Error deleting item: "+err.Error(), http.StatusInternalServerError)
+        return
+    }
+
+    http.Redirect(w, r, "/account", http.StatusSeeOther)
+})
 
 
 
