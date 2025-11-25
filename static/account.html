@@ -10,6 +10,9 @@
 <body class="container mt-4">
 
     <h1>My Account</h1>
+    <form action="/logout" method="post">
+        <button type="submit" class="btn btn-danger">Log Out</button>
+    </form>
 
     <div class="d-flex gap-3 mb-3">
         <a href="/">Home</a>
@@ -21,9 +24,31 @@
 
     <br><br>
 
-    <form action="/logout" method="post">
-        <button type="submit" class="btn btn-danger">Log Out</button>
-    </form>
+    <h2>My Orders</h2>
+    
+    {{if .Orders}}
+    {{range .Orders}}
+    <div style="margin-bottom: 20px; padding: 10px; border: 1px solid #ccc;">
+        <p><strong>Order ID:</strong> {{.id}}</p>
+        <p><strong>Total:</strong> ${{printf "%.2f" .total}}</p>
+        <p><strong>Placed at:</strong> {{.created_at}}</p>
+    
+        <p><strong>Items:</strong></p>
+        <ul>
+            {{range .items}}
+            <li>
+                {{.brand}} —
+                {{.code}} —
+                ${{.price}} —
+                Delivery: {{.delivery_days}} days
+            </li>
+            {{end}}
+        </ul>
+    </div>
+    {{end}}
+    {{else}}
+    <p>You have no orders yet.</p>
+    {{end}}
 
 </body>
 

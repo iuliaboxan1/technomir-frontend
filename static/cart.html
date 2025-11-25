@@ -43,6 +43,11 @@
 
     <h3>Total: ${{printf "%.2f" .Total}}</h3>
 
+    <form action="/order/place" method="post">
+        <button class="btn btn-primary mt-3">Place Order</button>
+    </form>
+
+
     {{else}}
     <p>Your cart is empty.</p>
     {{end}}
@@ -50,8 +55,5 @@
     <br><br>
 
 
-    <form action="/logout" method="post">
-        <button type="submit">Log Out</button>
-    </form>
 
 </body>

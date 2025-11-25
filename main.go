@@ -15,6 +15,7 @@ import (
 	"github.com/supabase-community/supabase-go"
 	"github.com/supabase-community/gotrue-go"
 	"github.com/supabase-community/gotrue-go/types"
+    "github.com/supabase-community/postgrest-go"
 )
 
 var tpl = template.Must(template.ParseFiles("static/index.html"))
@@ -262,6 +263,7 @@ http.HandleFunc("/logout", func(w http.ResponseWriter, r *http.Request) {
 
 
     // Account
+// Account page
 http.HandleFunc("/account", func(w http.ResponseWriter, r *http.Request) {
 
     cookie, err := r.Cookie("access_token")
@@ -278,10 +280,64 @@ http.HandleFunc("/account", func(w http.ResponseWriter, r *http.Request) {
         return
     }
 
+    userID, err := extractUserIDFromJWT(token)
+    if err != nil {
+        http.Redirect(w, r, "/login", http.StatusSeeOther)
+        return
+    }
+
+    // --- Fetch cart items ---
+    cartData, _, err := supabaseClient.
+        From("cart_items").
+        Select("*", "", false).
+        Eq("user_id", userID).
+        Execute()
+
+    if err != nil {
+        http.Error(w, fmt.Sprintf("Error loading cart: %v", err), http.StatusInternalServerError)
+        return
+    }
+
+    var cart []map[string]interface{}
+    json.Unmarshal(cartData, &cart)
+
+    // --- Calculate total ---
+    total := 0.0
+    for _, item := range cart {
+        if priceFloat, ok := item["price"].(float64); ok {
+            total += priceFloat
+        } else if priceStr, ok := item["price"].(string); ok {
+            var parsed float64
+            fmt.Sscanf(priceStr, "%f", &parsed)
+            total += parsed
+        }
+    }
+
+    // --- Fetch orders ---
+    orderData, _, err := supabaseClient.
+        From("orders").
+        Select("*", "", false).
+        Eq("user_id", userID).
+        Order("created_at", &postgrest.OrderOpts{Ascending: false}).
+        Execute()
+
+    if err != nil {
+        http.Error(w, fmt.Sprintf("Error loading orders: %v", err), http.StatusInternalServerError)
+        return
+    }
+
+    var orders []map[string]interface{}
+    json.Unmarshal(orderData, &orders)
+
+    // --- Render template ---
     accountTpl.Execute(w, map[string]interface{}{
-        "Email": email,
+        "Email":  email,
+        "Cart":   cart,
+        "Total":  total,
+        "Orders": orders,
     })
 })
+
 
 
 
@@ -457,6 +513,82 @@ http.HandleFunc("/cart/remove", func(w http.ResponseWriter, r *http.Request) {
 })
 
 
+
+    http.HandleFunc("/order/place", func(w http.ResponseWriter, r *http.Request) {
+
+    cookie, err := r.Cookie("access_token")
+    if err != nil || cookie.Value == "" {
+        http.Redirect(w, r, "/login", http.StatusSeeOther)
+        return
+    }
+
+    token := cookie.Value
+
+    userID, _ := extractUserIDFromJWT(token)
+    // email, _ := extractEmailFromJWT(token)
+
+    // Fetch cart
+    data, _, err := supabaseClient.
+        From("cart_items").
+        Select("*", "", false).
+        Eq("user_id", userID).
+        Execute()
+
+    if err != nil {
+        http.Error(w, "Failed to load cart", 500)
+        return
+    }
+
+    var cart []map[string]interface{}
+    json.Unmarshal(data, &cart)
+
+    if len(cart) == 0 {
+        http.Error(w, "Cart is empty", 400)
+        return
+    }
+
+    // Calculate total
+    var total float64 = 0
+    for _, item := range cart {
+        if p, ok := item["price"].(float64); ok {
+            total += p
+        }
+    }
+
+    // Save order
+    orderPayload := map[string]interface{}{
+        "user_id": userID,
+        "items":   cart,
+        "total":   total,
+    }
+
+    _, _, err = supabaseClient.
+        From("orders").
+        Insert(orderPayload, false, "", "", "").
+        Execute()
+
+    if err != nil {
+        http.Error(w, "Failed to save order: "+err.Error(), 500)
+        return
+    }
+
+    // Clear cart
+    _, _, err = supabaseClient.
+        From("cart_items").
+        Delete("", "").
+        Eq("user_id", userID).
+        Execute()
+
+    if err != nil {
+        http.Error(w, "Failed to clear cart", 500)
+        return
+    }
+
+    // Send email
+    //sendOrderEmail(email, cart, total)
+
+    http.Redirect(w, r, "/account", http.StatusSeeOther)
+})
 
 
 

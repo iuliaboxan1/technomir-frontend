@@ -1,209 +1,43 @@
-<!-- <!DOCTYPE html>
-<html lang="en">
+<!-- http.HandleFunc("/account", func(w http.ResponseWriter, r *http.Request) {
 
-<head>
-    <meta charset="UTF-8">
-    <title>Technomir Search</title>
-</head>
-
-<body>
-    <h1>Technomir Search</h1>
-
-
-    <a href="/account">My Account</a>
-
-    <form method="post" action="/">
-        <input type="text" name="partNum" placeholder="Enter part number" required>
-        <button type="submit">Search</button>
-    </form>
-
-    {{if .}}
-    <h2>Results:</h2>
-    <ul>
-        {{range .}}
-        <li>
-            Brand: {{.Brand}} | Code: {{.Code}}
-            <ul>
-                {{range .Stocks}}
-                <li>Supplier: {{.PriceLogo}} | 
-                    Price: {{.Price}} |
-                    Delivery: {{.DeliveryDays}} days 
-
-                    
-                    <form action="/cart/add" method="post">
-                        <input type="hidden" name="brand" value="{{$.Brand}}">
-                        <input type="hidden" name="code" value="{{$.Code}}">
-                        <input type="hidden" name="supplier" value="{{.PriceLogo}}">
-                        <input type="hidden" name="price" value="{{.Price}}">
-                        <input type="hidden" name="delivery" value="{{.DeliveryDays}}">
-                        <button type="submit" style="display:inline; width: 3rem; background-color: red;">Add to Cart</button>
-                    </form>
-                
-                </li>
-                {{end}}
-            </ul>
-        </li>
-        {{end}}
-    </ul>
-    {{end}}
-
-    
-</body>
-
-</html> -->
-
-
-
-
-
-<!-- // Add to cart
-http.HandleFunc("/cart/add", func(w http.ResponseWriter, r *http.Request) {
-
-if r.Method != http.MethodPost {
-http.Redirect(w, r, "/", http.StatusSeeOther)
-return
-}
-
-// Must be logged in
-cookie, err := r.Cookie("session_token")
+cookie, err := r.Cookie("access_token")
 if err != nil || cookie.Value == "" {
 http.Redirect(w, r, "/login", http.StatusSeeOther)
 return
 }
 
-// Extract user ID
-userID, err := extractUserIDFromJWT(cookie.Value)
+token := cookie.Value
+
+email, err := extractEmailFromJWT(token)
 if err != nil {
 http.Redirect(w, r, "/login", http.StatusSeeOther)
 return
 }
 
-// Extract form values
-brand := r.FormValue("brand")
-code := r.FormValue("code")
-supplier := r.FormValue("supplier")
-price := r.FormValue("price")
-delivery := r.FormValue("delivery")
-
-payload := map[string]interface{}{
-"user_id": userID,
-"brand": brand,
-"code": code,
-"supplier": supplier,
-"price": price,
-"delivery_days": delivery,
-}
-
-// 🚀 FIXED — No result variable here
-_, _, err = supabaseClient.
-From("cart_items").
-Insert(payload, false, "", "", "").
+// Fetch orders
+ordersData, _, err := supabaseClient.
+From("orders").
+Select("*", "", false).
+Eq("user_id", userID).
+Order("created_at", "desc").
 Execute()
 
 if err != nil {
-http.Error(w, fmt.Sprintf("Error adding to cart: %v", err), http.StatusInternalServerError)
+http.Error(w, "Failed to load orders: "+err.Error(), 500)
 return
 }
 
-http.Redirect(w, r, "/account", http.StatusSeeOther)
+var orders []map[string]interface{}
+if err := json.Unmarshal(ordersData, &orders); err != nil {
+http.Error(w, "Failed to decode orders JSON: "+err.Error(), 500)
+return
+}
+
+
+accountTpl.Execute(w, map[string]interface{}{
+"Email": email,
+"Cart": cart,
+"Total": total,
+"Orders": orders,
 })
- -->
-
-
-
-<!-- http.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
-if r.Method == http.MethodGet {
-loginTpl.Execute(w, nil)
-return
-}
-
-email := strings.TrimSpace(r.FormValue("email"))
-password := strings.TrimSpace(r.FormValue("password"))
-
-session, err := authClient.SignInWithEmailPassword(email, password)
-if err != nil {
-errMsg := err.Error()
-if strings.Contains(errMsg, "invalid_credentials") {
-// Supabase returns this if the email doesn't exist or password is wrong
-if strings.Contains(errMsg, "Invalid login credentials") {
-// Now check if the email exists to show a better message
-// (simpler version: just use one message per case)
-message := "Wrong password or user does not exist. Please check your email or create an account first."
-loginTpl.Execute(w, map[string]string{"Error": message})
-return
-}
-}
-http.Error(w, fmt.Sprintf("Login error: %v", err), http.StatusInternalServerError)
-return
-}
-
-http.SetCookie(w, &http.Cookie{
-Name: "session_token",
-Value: session.AccessToken,
-Path: "/",
-})
-
-http.Redirect(w, r, "/", http.StatusSeeOther)
 }) -->
-
-
-
-
-<!-- Log out -->
-<!-- http.HandleFunc("/logout", func(w http.ResponseWriter, r *http.Request) {
-http.SetCookie(w, &http.Cookie{
-Name: "session_token",
-Value: "",
-Path: "/",
-MaxAge: -1,
-})
-http.Redirect(w, r, "/login", http.StatusSeeOther)
-}) -->
-
-
-
-    <!-- //Account
-    http.HandleFunc("/account", func(w http.ResponseWriter, r *http.Request) {
-    
-    cookie, err := r.Cookie("session_token")
-    if err != nil || cookie.Value == "" {
-    http.Redirect(w, r, "/login", http.StatusSeeOther)
-    return
-    }
-    
-    email, err := extractEmailFromJWT(cookie.Value)
-    if err != nil {
-    http.Redirect(w, r, "/login", http.StatusSeeOther)
-    return
-    }
-    
-    userID, err := extractUserIDFromJWT(cookie.Value)
-    if err != nil {
-    http.Redirect(w, r, "/login", http.StatusSeeOther)
-    return
-    }
-    
-    // Fetch cart items
-    data, _, err := supabaseClient.
-    From("cart_items").
-    Select("*", "", false).
-    Eq("user_id", userID).
-    Execute()
-    
-    if err != nil {
-    http.Error(w, fmt.Sprintf("Error loading cart: %v", err), http.StatusInternalServerError)
-    return
-    }
-    
-    // Decode JSON response
-    var cart []map[string]interface{}
-    if err := json.Unmarshal(data, &cart); err != nil {
-    http.Error(w, fmt.Sprintf("Error decoding cart JSON: %v", err), http.StatusInternalServerError)
-    return
-    }
-    
-    accountTpl.Execute(w, map[string]interface{}{
-    "Email": email,
-    "Cart": cart,
-    })
-    }) -->
