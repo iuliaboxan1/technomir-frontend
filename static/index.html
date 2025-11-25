@@ -33,7 +33,7 @@
                     Price: {{.Price}} |
                     Delivery: {{.DeliveryDays}} days
 
-                    <form action="/cart/add" method="post">
+                    <form action="/cart/add" method="post" class="add-to-cart-form">
                         <input type="hidden" name="brand" value="{{ $item.Brand }}">
                         <input type="hidden" name="code" value="{{ $item.Code }}">
                         <input type="hidden" name="supplier" value="{{ .PriceLogo }}">
@@ -50,6 +50,9 @@
 
     </ul>
     {{end}}
+
+    <script src="/static/js/cart.js"></script>
+
 
 </body>
 

@@ -90,6 +90,9 @@ func extractUserIDFromJWT(token string) (string, error) {
 
 
 func main() {
+
+    http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
+
 	// --- Technomir setup ---
 	token := os.Getenv("TECHNOMIR_TOKEN")
 	if token == "" {
@@ -382,7 +385,9 @@ http.HandleFunc("/cart/add", func(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    http.Redirect(w, r, "/account", http.StatusSeeOther)
+    // http.Redirect(w, r, "/account", http.StatusSeeOther)
+    w.WriteHeader(http.StatusOK)
+    w.Write([]byte("ok"))
 })
 
 
